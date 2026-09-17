@@ -1,0 +1,4 @@
+# 影片掛在本 repo 的 videos Release，不進版控 ——
+# 進了就永遠刪不掉，每換一支多一份約 50MB 的 blob。
+videos/
+_site/

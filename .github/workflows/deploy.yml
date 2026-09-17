@@ -1,0 +1,59 @@
+# GitHub Pages。git 裡只有編譯輸出，影片在建置時從本 repo 的 Release 下載。
+#
+# 為什麼不把影片放進 git：每換一支影片就多一份約 50MB 的 blob，而且永遠刪不掉。
+# 先前用「分支直接發布」時歷史已經累積到 13 份影片 blob、遠端 208MB。
+# Release 附件不算 git 歷史，所以換影片只要覆蓋附件、重跑這個 workflow。
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  VIDEO_RELEASE: videos
+  VIDEO_COUNT: 9
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      - name: 組站（編譯輸出 + 從 Release 取得影片）
+        run: |
+          mkdir -p _site
+          rsync -a --exclude .git --exclude .github --exclude _site ./ _site/
+          mkdir -p _site/videos
+          gh release download "$VIDEO_RELEASE" -p '*.mp4' -D _site/videos
+          ls -lh _site/videos
+          # 抓不到就讓建置失敗 —— 靜默變成黑背景比壞掉更難發現
+          test "$(ls _site/videos/*.mp4 | wc -l)" -eq "$VIDEO_COUNT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
